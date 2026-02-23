@@ -1,17 +1,5 @@
-﻿using LCS.Forms;
-using LCS.JsonObjects;
-using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Net;
+﻿using Microsoft.Win32;
 using System.Reflection;
-using System.Security.Principal;
-using System.Text;
-using System.Threading.Tasks;
-using System.Web;
-using System.Windows.Forms;
 
 namespace LCS
 {
@@ -24,6 +12,14 @@ namespace LCS
         public static string LCS_URL = Properties.Settings.Default.lcsURL;
         public static string LCS_FIX_URL = Properties.Settings.Default.lcsFixURL;
 
+        public static void RefreshUrls()
+        {
+            LCS_DIAG_URL = Properties.Settings.Default.lcsDiagURL;
+            LCS_UPDATE_URL = Properties.Settings.Default.lcsUpdateURL;
+            LCS_URL = Properties.Settings.Default.lcsURL;
+            LCS_FIX_URL = Properties.Settings.Default.lcsFixURL;
+        }
+
         public static bool DetectURILaunch(string[] args)
         {
             bool retVal = false;
@@ -32,7 +28,7 @@ namespace LCS
             {
                 if (Uri.TryCreate(arg, UriKind.RelativeOrAbsolute, out Uri srcUri))
                 {
-                    Uri  uri = srcUri.IsAbsoluteUri ?  srcUri : new Uri(new Uri("ms-2lcs://lcs.dynamics.com/"), arg);
+                    Uri uri = srcUri.IsAbsoluteUri ? srcUri : new Uri(new Uri("ms-2lcs://lcs.dynamics.com/"), arg);
                     retVal = retVal || uri.Scheme == URI_PROTOCOL_NAME.ToLower();
                     if (retVal) break;
                 }
@@ -43,29 +39,45 @@ namespace LCS
 
         public static bool RemoveHandler()
         {
-            bool retVal = false;
-            if (IsAdministratorAccessProvided())
-            { 
-                Registry.ClassesRoot.DeleteSubKeyTree(URI_PROTOCOL_NAME, false);            
-                
-                MessageBox.Show($"{URI_PROTOCOL_NAME} protocol handler registration removed.");
-                retVal = true;
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine($"{URI_PROTOCOL_NAME} protocol handler is only available on Windows.");
+                return false;
             }
-            return retVal;
+
+            try
+            {
+                Registry.ClassesRoot.DeleteSubKeyTree(URI_PROTOCOL_NAME, false);
+                Console.WriteLine($"{URI_PROTOCOL_NAME} protocol handler registration removed.");
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Console.WriteLine("Administrator privileges are required to remove protocol handler registration.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to remove protocol handler: {ex.Message}");
+                return false;
+            }
         }
 
         public static bool RegisterHandler()
         {
-            bool retVal = true;
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.WriteLine($"{URI_PROTOCOL_NAME} protocol handler is only available on Windows.");
+                return false;
+            }
 
-            retVal = retVal && IsAdministratorAccessProvided();
-            retVal = retVal && RemoveHandler();
+            _ = RemoveHandler();
 
-            if (retVal)
-            { 
+            try
+            {
                 RegistryKey rootKey = Registry.ClassesRoot.CreateSubKey(URI_PROTOCOL_NAME.ToLower());
 
-                if (rootKey  != null)
+                if (rootKey != null)
                 {
                     string appAssemblyLocation = Assembly.GetExecutingAssembly().Location;
 
@@ -81,24 +93,19 @@ namespace LCS
                            .SetValue("", $@"""{appAssemblyLocation}"" ""%1""");
                 }
 
-                MessageBox.Show($"{URI_PROTOCOL_NAME} protocol  handler registration completed.\nRemember to not move the executable to other location or re-register it after.");
-                retVal = true;
+                Console.WriteLine($"{URI_PROTOCOL_NAME} protocol handler registration completed.");
+                return true;
             }
-            return  retVal;
-        }
-
-        private static bool IsAdministratorAccessProvided()
-        {
-             bool isAdmin = CheckIsUserAdministrator();
-
-            if (!isAdmin)
+            catch (UnauthorizedAccessException)
             {
-                MessageBox.Show("You must be system administrator", "Insufficient privilidges", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Console.WriteLine("Administrator privileges are required to register protocol handler.");
+                return false;
             }
-
-            return isAdmin;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to register protocol handler: {ex.Message}");
+                return false;
+            }
         }
-
-        private static bool CheckIsUserAdministrator() => new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
     }
 }

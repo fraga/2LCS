@@ -231,7 +231,7 @@ namespace LCS.JsonObjects
         public string JITErrorText { get; set; }
         public JITOptions[] JITOptions { get; set; }
         public string JITOptionsText { get; set; }
-        public bool JITRequestAccessEnabledState { get; set; }
+        public JITRequestAccessEnabledState JITRequestAccessEnabledState { get; set; }
         public object JITRequestActivityId { get; set; }
         public string LicenseLink { get; set; }
         public Credentials[] LocalCredentials { get; set; }
@@ -599,7 +599,7 @@ namespace LCS.JsonObjects
         public string AzureSubscriptionId { get; set; }
         public object BuildNumber { get; set; }
         public object CatalogName { get; set; }
-        public int ConnectorId { get; set; }
+        public int? ConnectorId { get; set; }
         public DeploymentEnvironmentType DeploymentEnvironmentType { get; set; }
         public string DeploymentHealthSummary { get; set; }
         public int DeploymentSkuId { get; set; }
@@ -743,7 +743,7 @@ namespace LCS.JsonObjects
         public string Name { get; set; }
         public string PackageAssetId { get; set; }
         public string PackageType { get; set; }
-        public int ServicingAction { get; set; }
+        public int? ServicingAction { get; set; }
         public string StartDate { get; set; }
         public LcsEnvironmentActionStatus Status { get; set; }
         public string EnvironmentName { get; set; }

@@ -1,52 +1,34 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows7.0</TargetFramework>
-    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <RootNamespace>LCS</RootNamespace>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <HockeyAppResourceId>2d4f869a87b44c629f8f8c2f36ed4f54</HockeyAppResourceId>
-    <PublishUrl>publish\</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
-    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <UseWindowsForms>true</UseWindowsForms>
-    <UseWPF>true</UseWPF>
-    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
-    <LangVersion>10.0</LangVersion>
-  </PropertyGroup>
-  <PropertyGroup>
-    <AssemblyOriginatorKeyFile>
-    </AssemblyOriginatorKeyFile>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationIcon>favicon-white.ico</ApplicationIcon>
-  </PropertyGroup>
-  <PropertyGroup>
     <StartupObject>LCS.Program</StartupObject>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
     <AssemblyTitle>2LCS</AssemblyTitle>
     <Company>Microsoft</Company>
     <Product>2LCS</Product>
     <Version>0.42.0</Version>
-    <Copyright>Copyright ©  2023</Copyright>
-	<Description>This small utility can help you manage D365FO instances deployed in your LCS project. Both cloud-hosted - in your Azure subscription and Microsoft-hosted sandboxes. It offers only a subset of functionalities that LCS offers, but you can execute them a bit faster.</Description>
+    <Copyright>Copyright © 2023</Copyright>
+    <Description>This utility helps manage D365FO instances deployed in Lifecycle Services projects.</Description>
     <PackageProjectUrl>https://github.com/microsoft/2LCS</PackageProjectUrl>
     <RepositoryUrl>https://github.com/microsoft/2LCS</RepositoryUrl>
+    <ApplicationIcon>favicon-white.ico</ApplicationIcon>
   </PropertyGroup>
+
   <ItemGroup>
-    <Compile Update="ExtendedWebBrowser.cs">
-      <SubType>Component</SubType>
-    </Compile>
+    <Compile Remove="Forms/**/*.cs" />
+    <Compile Remove="AssetLibrary/AssetLibrarySearch.cs" />
+    <Compile Remove="AssetLibrary/AssetLibrarySearch.Designer.cs" />
+    <Compile Remove="ExtendedWebBrowser.cs" />
+    <Compile Remove="NativeMethods.cs" />
+    <EmbeddedResource Remove="Forms/**/*.resx" />
+    <EmbeddedResource Remove="AssetLibrary/AssetLibrarySearch.resx" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Update="Properties\Settings.Designer.cs">
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <AutoGen>True</AutoGen>
@@ -60,29 +42,7 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.6.1 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <COMReference Include="SHDocVw">
-      <Guid>{EAB22AC0-30C1-11CF-A7EB-0000C05BAE0B}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>1</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </COMReference>
-  </ItemGroup>
+
   <ItemGroup>
     <Content Include="favicon-blue.ico" />
     <Content Include="favicon-white.ico" />
@@ -90,25 +50,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="13.0.1" />
-    <PackageReference Include="CsvHelper">
-      <Version>33.0.1</Version>
-    </PackageReference>
-    <PackageReference Include="DocX">
-      <Version>3.0.23523.1209</Version>
-    </PackageReference>
-    <PackageReference Include="HtmlAgilityPack">
-      <Version>1.11.72</Version>
-    </PackageReference>
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
-    <PackageReference Include="System.Drawing.Common" Version="9.0.1" />
-    <PackageReference Include="System.Linq.Dynamic.Core">
-      <Version>1.6.1</Version>
-    </PackageReference>
-    <PackageReference Include="System.Runtime.Caching" Version="9.0.1" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
+    <PackageReference Include="DocX" Version="3.0.23523.1209" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.1" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Runtime.Caching" Version="10.0.0" />
   </ItemGroup>
 </Project>

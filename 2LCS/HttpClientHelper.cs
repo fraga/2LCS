@@ -2,14 +2,13 @@
 using LCS.Cache;
 using LCS.JsonObjects;
 using LCS.Utils;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -21,11 +20,14 @@ namespace LCS
         private bool _disposed;
         private StringContent _stringContent;
 
+        private static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        };
+
         internal HttpClientHelper(CookieContainer cookieContainer)
         {
-            //Use Tls1.2 as default transport layer
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-
             CookieContainer = cookieContainer;
             var httpClientHandler = new HttpClientHandler
             {
@@ -145,7 +147,7 @@ namespace LCS
                 var result = await _httpClient.PostAsync(url, _stringContent);
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 return response.Success;
             }
         }
@@ -161,7 +163,7 @@ namespace LCS
                 string platformRelease;
                 try
                 {
-                    var releaseVersion = JsonConvert.DeserializeObject<ValidateSandboxServicingData>(validationResponse.Data.ToString());
+                    var releaseVersion = JsonSerializer.Deserialize<ValidateSandboxServicingData>(validationResponse.Data.ToString(), JsonOpts);
                     platformRelease = releaseVersion.PlatformRelease;
                 }
                 catch
@@ -191,7 +193,7 @@ namespace LCS
                 var result = await _httpClient.PostAsync($"{LcsUrl}/Environment/DeleteEnvironment/{LcsProjectId}", _stringContent);
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 return response.Success;
             }
         }
@@ -214,7 +216,7 @@ namespace LCS
                 var result = await _httpClient.PostAsync(url, _stringContent);
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 if (response.Success)
                 {
                     return $"Successfully deleted firewall rule {rule} for instance {instance.DisplayName}";
@@ -244,7 +246,7 @@ namespace LCS
                         ItemsRequested = numberOfProjectsRequested
                     }
                 };
-                var pagingParamsJson = JsonConvert.SerializeObject(pagingParams, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+                var pagingParamsJson = JsonSerializer.Serialize(pagingParams, JsonOpts);
 
                 using (_stringContent = new StringContent(pagingParamsJson, Encoding.UTF8, "application/json"))
                 {
@@ -252,10 +254,10 @@ namespace LCS
                     result.EnsureSuccessStatusCode();
 
                     var responseBody = await result.Content.ReadAsStringAsync();
-                    var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                    var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                     if (response.Success && response.Data != null)
                     {
-                        var projects = JsonConvert.DeserializeObject<ProjectsData>(response.Data.ToString()).Results;
+                        var projects = JsonSerializer.Deserialize<ProjectsData>(response.Data.ToString(), JsonOpts).Results;
                         numberOfProjectReturned = projects.Count;
                         allProjects.AddRange(projects);
                     }
@@ -287,7 +289,7 @@ namespace LCS
                         ItemsRequested = numberOfUsersRequested
                     }
                 };
-                var pagingParamsJson = JsonConvert.SerializeObject(pagingParams, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+                var pagingParamsJson = JsonSerializer.Serialize(pagingParams, JsonOpts);
 
                 using (_stringContent = new StringContent(pagingParamsJson, Encoding.UTF8, "application/json"))
                 {
@@ -295,10 +297,10 @@ namespace LCS
                     result.EnsureSuccessStatusCode();
 
                     var responseBody = result.Content.ReadAsStringAsync().Result;
-                    var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                    var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                     if (response.Success && response.Data != null)
                     {
-                        var users = JsonConvert.DeserializeObject<ProjectUsersData>(response.Data.ToString()).Results;
+                        var users = JsonSerializer.Deserialize<ProjectUsersData>(response.Data.ToString(), JsonOpts).Results;
                         numberOfUsersReturned = users.Count;
                         allUsers.AddRange(users);
                     }
@@ -319,11 +321,11 @@ namespace LCS
                 var result = _httpClient.GetAsync($"{LcsUpdateUrl}/cloudupdate/Results/{LcsProjectId}?query=&countries=&industries=&configKeys=&modules=&e={envId}&page=&t={hotfixesType}&_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 if (!response.Success || response.Data == null) return null;
-                var jObject = JObject.Parse(response.Data.ToString());
-                var allResults = jObject.SelectToken("AllResults");
-                var kbs = JsonConvert.DeserializeObject<List<Hotfix>>(allResults.ToString());
+                var dataElement = (JsonElement)response.Data;
+                var allResults = dataElement.GetProperty("AllResults");
+                var kbs = JsonSerializer.Deserialize<List<Hotfix>>(allResults.GetRawText(), JsonOpts);
                 foreach (var kb in kbs)
                 {
                     kb.Url = $"{URIHandler.LCS_FIX_URL}/Issue/Details/{LcsProjectId}?kb={kb.KBNumber}&bugId={kb.BugNumber}";
@@ -343,7 +345,7 @@ namespace LCS
             var result = _httpClient.GetAsync(GetEnvironmentBuildInfoIdUrl(instance)).Result;
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var environments = JsonConvert.DeserializeObject<List<BuildInfoEnvironment>>(responseBody);
+            var environments = JsonSerializer.Deserialize<List<BuildInfoEnvironment>>(responseBody, JsonOpts);
             if (environments != null && environments.Count > 0)
             {
                 return environments.First().Value;
@@ -367,7 +369,7 @@ namespace LCS
 
             try
             {
-                var cloudHostedInstancesUnsorted = JsonConvert.DeserializeObject<Dictionary<string, CloudHostedInstance>>(responseBody);
+                var cloudHostedInstancesUnsorted = JsonSerializer.Deserialize<Dictionary<string, CloudHostedInstance>>(responseBody, JsonOpts);
                 if (cloudHostedInstancesUnsorted != null)
                 {
                     list.AddRange(cloudHostedInstancesUnsorted.Values.OrderBy(x => x.InstanceId));
@@ -386,19 +388,14 @@ namespace LCS
             result.EnsureSuccessStatusCode();
 
             var responseBody = await result.Content.ReadAsStringAsync();
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
 
             var list = new List<CloudHostedInstance>();
             if (response.Success)
             {
                 if (response.Data == null) return list;
 
-                var settings = new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore,
-                    MissingMemberHandling = MissingMemberHandling.Ignore
-                };
-                var cloudHostedInstancesUnsorted = JsonConvert.DeserializeObject<Dictionary<string, CloudHostedInstance>>(response.Data.ToString(), settings);
+                var cloudHostedInstancesUnsorted = JsonSerializer.Deserialize<Dictionary<string, CloudHostedInstance>>(response.Data.ToString(), JsonOpts);
                 if (cloudHostedInstancesUnsorted != null)
                 {
                     list.AddRange(cloudHostedInstancesUnsorted.Values.OrderBy(x => x.InstanceId));
@@ -423,11 +420,11 @@ namespace LCS
             var result = _httpClient.GetAsync($"{LcsUrl}/DeploymentPortal/GetCredentials/{LcsProjectId}?environmentId={environmentId}&deploymentItemName={itemName}&_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
 
             if (response.Success && response.Data != null)
             {
-                credentialsDic = JsonConvert.DeserializeObject<Dictionary<string, string>>(response.Data.ToString());
+                credentialsDic = JsonSerializer.Deserialize<Dictionary<string, string>>(response.Data.ToString(), JsonOpts);
 
                 if (CacheUtil.IsCachingEnabled())
                     CredentialsCacheHelper.AddCredentialsCache(environmentId, credentialsDic);
@@ -441,9 +438,13 @@ namespace LCS
         internal string GetDiagEnvironmentId(CloudHostedInstance instance)
         {
             var result = _httpClient.GetAsync($"{LcsUrl}/Environment/GetDiagEnvironmentId/{LcsProjectId}?environmentId={instance.EnvironmentId}&_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
+            if (result.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return response.Success && response.Data != null ? response.Data.ToString() : null;
         }
 
@@ -452,7 +453,7 @@ namespace LCS
             var result = _httpClient.GetAsync(GetEnvironmentBuildInfoDetailsUrl(instance, environmentId.ToString())).Result;
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<BuildInfoDetails>(responseBody);
+            var response = JsonSerializer.Deserialize<BuildInfoDetails>(responseBody, JsonOpts);
             if (response != null)
             {
                 response.BuildInfoTreeView.RemoveAll(x => x.ParentId == null);
@@ -487,14 +488,9 @@ namespace LCS
                 var result = _httpClient.GetAsync(url).Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 if (!response.Success || response.Data == null) return null;
-                var settings = new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore,
-                    MissingMemberHandling = MissingMemberHandling.Ignore
-                };
-                var NSG = JsonConvert.DeserializeObject<NetworkSecurityGroup>(response.Data.ToString(), settings);
+                var NSG = JsonSerializer.Deserialize<NetworkSecurityGroup>(response.Data.ToString(), JsonOpts);
                 return NSG;
             }
             catch
@@ -521,7 +517,7 @@ namespace LCS
                         ItemsRequested = numberOfPackagesRequested
                     }
                 };
-                var pagingParamsJson = JsonConvert.SerializeObject(pagingParams, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+                var pagingParamsJson = JsonSerializer.Serialize(pagingParams, JsonOpts);
 
                 using (_stringContent = new StringContent(pagingParamsJson, Encoding.UTF8, "application/json"))
                 {
@@ -529,10 +525,10 @@ namespace LCS
                     result.EnsureSuccessStatusCode();
 
                     var responseBody = result.Content.ReadAsStringAsync().Result;
-                    var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                    var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                     if (response.Success && response.Data != null)
                     {
-                        var packages = JsonConvert.DeserializeObject<PackagesData>(response.Data.ToString()).Results;
+                        var packages = JsonSerializer.Deserialize<PackagesData>(response.Data.ToString(), JsonOpts).Results;
                         numberOfPackagesReturned = packages.Count;
                         packageList.AddRange(packages);
                     }
@@ -576,7 +572,7 @@ namespace LCS
                 var result = _httpClient.GetAsync($"{LcsUrl}/DeploymentPortal/IsRdpResourceAvailable/{LcsProjectId}/?topologyInstanceId={instance.InstanceId}&virtualMachineInstanceName={vm.MachineName}&deploymentItemName={vm.ItemName}&azureSubscriptionId={instance.AzureSubscriptionId}&group=0&isARMTopology={instance.IsARMTopology}&nsgWarningDisplayed=true&_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var rdpPresentResponse = JsonConvert.DeserializeObject<Response>(responseBody);
+                var rdpPresentResponse = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 if (!rdpPresentResponse.Success) continue;
                 _httpClient.DefaultRequestHeaders.Remove("Accept");
                 _httpClient.DefaultRequestHeaders.Remove("X-Requested-With");
@@ -641,10 +637,10 @@ namespace LCS
             result.EnsureSuccessStatusCode();
 
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return !response.Success
                 ? null
-                : response.Data == null ? null : JsonConvert.DeserializeObject<ProjectData>(response.Data.ToString());
+                : response.Data == null ? null : JsonSerializer.Deserialize<ProjectData>(response.Data.ToString(), JsonOpts);
         }
 
         internal async Task<CloudHostedInstance> GetHostedDeploymentDetailAsync(HostedDeploymentInstance instance)
@@ -664,10 +660,10 @@ namespace LCS
             result.EnsureSuccessStatusCode();
 
             var responseBody = await result.Content.ReadAsStringAsync();
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return !response.Success
                 ? null
-                : response.Data == null ? null : JsonConvert.DeserializeObject<CloudHostedInstance>(response.Data.ToString());
+                : response.Data == null ? null : JsonSerializer.Deserialize<CloudHostedInstance>(response.Data.ToString(), JsonOpts);
         }
 
         internal async Task<List<CloudHostedInstance>> GetHostedInstancesAsync()
@@ -687,17 +683,12 @@ namespace LCS
             result.EnsureSuccessStatusCode();
 
             var responseBody = await result.Content.ReadAsStringAsync();
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
-            var settings = new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore,
-                MissingMemberHandling = MissingMemberHandling.Ignore
-            };
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             var list = new List<CloudHostedInstance>();
             if (!response.Success) return list;
             {
                 if (response.Data == null) return list;
-                var instances = JsonConvert.DeserializeObject<List<HostedInstance>>(response.Data.ToString(), settings);
+                var instances = JsonSerializer.Deserialize<List<HostedInstance>>(response.Data.ToString(), JsonOpts);
                 if (instances == null) return list;
 
                 instances = instances.OrderBy(x => x.DisplayOrder).ToList();//Sort according to display order
@@ -727,7 +718,7 @@ namespace LCS
                 var result = _httpClient.PostAsync($"{LcsUrl}/Environment/StartSandboxServicing/{LcsProjectId}", _stringContent).Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                return JsonConvert.DeserializeObject<Response>(responseBody);
+                return JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             }
         }
 
@@ -753,7 +744,7 @@ namespace LCS
                 var result = _httpClient.PostAsync($"{LcsUrl}/Environment/ValidateSandboxServicing/{LcsProjectId}", _stringContent).Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                return JsonConvert.DeserializeObject<Response>(responseBody);
+                return JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             }
         }
 
@@ -793,10 +784,10 @@ namespace LCS
             result.EnsureSuccessStatusCode();
 
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return !response.Success
                 ? null
-                : response.Data == null ? null : JsonConvert.DeserializeObject<PlanData>(response.Data.ToString());
+                : response.Data == null ? null : JsonSerializer.Deserialize<PlanData>(response.Data.ToString(), JsonOpts);
         }
 
         internal async Task<List<UpcomingCalendarViewModels>> GetUpcomingCalendarsAsync()
@@ -807,10 +798,10 @@ namespace LCS
                 result.EnsureSuccessStatusCode();
 
                 var responseBody = await result.Content.ReadAsStringAsync();
-                dynamic response = JsonConvert.DeserializeObject<Response>(responseBody);
+                dynamic response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 return !response.Success
                     ? null
-                    : response.Data == null ? null : JsonConvert.DeserializeObject<List<UpcomingCalendarViewModels>>(response.Data.UpcomingCalendarViewModels.ToString());
+                    : response.Data == null ? null : JsonSerializer.Deserialize<List<UpcomingCalendarViewModels>>(((JsonElement)response.Data).GetProperty("UpcomingCalendarViewModels").GetRawText(), JsonOpts);
             }
             catch
             {
@@ -829,7 +820,7 @@ namespace LCS
             var result = _httpClient.GetAsync($"{LcsUrl}/Environment/GetDeploymentEnvironmentTypeInfo/{LcsProjectId}?environmentId={environmentId}&_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             if (response.Success && response.Data != null)
             {
                 Enum.TryParse(response.Data.ToString(), out DeploymentEnvironmentType envType);
@@ -846,10 +837,10 @@ namespace LCS
             var result = _httpClient.GetAsync($"{LcsUrl}/EnvironmentServicingV2/GetServicesToRestart/{LcsProjectId}?_={DateTimeOffset.Now.ToUnixTimeSeconds()}").Result;
             result.EnsureSuccessStatusCode();
             var responseBody = result.Content.ReadAsStringAsync().Result;
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return !response.Success
                     ? null
-                    : response.Data == null ? null : JsonConvert.DeserializeObject<List<ServiceToRestart>>(response.Data.ToString());
+                    : response.Data == null ? null : JsonSerializer.Deserialize<List<ServiceToRestart>>(response.Data.ToString(), JsonOpts);
         }
 
         internal ServiceRestartResponseData RestartService(CloudHostedInstance instance, string serviceTorestart)
@@ -861,22 +852,26 @@ namespace LCS
                 var result = _httpClient.PostAsync($"{LcsUrl}/EnvironmentServicingV2/RestartService/{LcsProjectId}", _stringContent).Result;
                 result.EnsureSuccessStatusCode();
                 var responseBody = result.Content.ReadAsStringAsync().Result;
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 return !response.Success
                     ? null
-                    : response.Data == null ? null : JsonConvert.DeserializeObject<ServiceRestartResponseData>(response.Data.ToString());
+                    : response.Data == null ? null : JsonSerializer.Deserialize<ServiceRestartResponseData>(response.Data.ToString(), JsonOpts);
             }
         }
 
         internal async Task<ActionDetails> GetOngoingActionDetailsAsync(CloudHostedInstance instance)
         {
             var result = await _httpClient.GetAsync($"{LcsUrl}/Environment/GetOngoingActionDetails/{LcsProjectId}?environmentId={instance.EnvironmentId}");
+            if (result.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
             result.EnsureSuccessStatusCode();
             var responseBody = await result.Content.ReadAsStringAsync();
-            var response = JsonConvert.DeserializeObject<Response>(responseBody);
+            var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
             return !response.Success
                     ? null
-                    : response.Data == null ? null : JsonConvert.DeserializeObject<ActionDetails>(response.Data.ToString());
+                    : response.Data == null ? null : JsonSerializer.Deserialize<ActionDetails>(response.Data.ToString(), JsonOpts);
         }
 
         internal async Task<List<ActionDetails>> GetEnvironmentHistoryDetailsAsync(CloudHostedInstance instance)
@@ -891,24 +886,19 @@ namespace LCS
                     ItemsRequested = historyItemsCount
                 }
             };
-            var pagingParamsJson = JsonConvert.SerializeObject(pagingParams, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+            var pagingParamsJson = JsonSerializer.Serialize(pagingParams, JsonOpts);
 
             using (_stringContent = new StringContent(pagingParamsJson, Encoding.UTF8, "application/json"))
             {
                 SetRequestVerificationToken($"{LcsUrl}/V2");
                 var result = await _httpClient.PostAsync($"{LcsUrl}/Environment/GetEnvironmentHistoryDetails/{LcsProjectId}?environmentId={instance.EnvironmentId}&_={DateTimeOffset.Now.ToUnixTimeSeconds()}", _stringContent);
                 result.EnsureSuccessStatusCode();
-                var settings = new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore,
-                    MissingMemberHandling = MissingMemberHandling.Ignore
-                };
 
                 var responseBody = await result.Content.ReadAsStringAsync();
-                var response = JsonConvert.DeserializeObject<Response>(responseBody);
+                var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
                 if (response.Success)
                 {
-                    var data = JsonConvert.DeserializeObject<EnvironmentHistoryDetailsData>(response.Data.ToString(), settings);
+                    var data = JsonSerializer.Deserialize<EnvironmentHistoryDetailsData>(response.Data.ToString(), JsonOpts);
                     if (data != null)
                     {
                         return data.Results;

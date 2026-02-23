@@ -1,15 +1,20 @@
-﻿using LCS.JsonObjects;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using LCS.JsonObjects;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 
 namespace LCS.AssetLibrary;
 
 internal static class HttpClientHelperAssetLibraryExtension
 {
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     internal static string GetGetSharedAssetsUrl(
         this HttpClientHelper httpClientHelper,
         AssetFileType assetFileType)
@@ -41,12 +46,12 @@ internal static class HttpClientHelperAssetLibraryExtension
         result.EnsureSuccessStatusCode();
 
         var responseBody = result.Content.ReadAsStringAsync().Result;
-        var response = JsonConvert.DeserializeObject<Response>(responseBody);
-        if (response.Success 
+        var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
+        if (response.Success
             && response.Data != null
-            && response.Data is JToken responseData)
+            && response.Data is JsonElement responseData)
         {
-            var assetData = responseData[0].ToObject<AssetData>();
+            var assetData = JsonSerializer.Deserialize<AssetData>(responseData[0].GetRawText(), JsonOpts);
             assetList = assetData.Assets;
         }
 
@@ -67,14 +72,14 @@ internal static class HttpClientHelperAssetLibraryExtension
         httpClientHelper.SetRequestVerificationToken($"{httpClientHelper.LcsUrl}/V2");
         var result = httpClientHelper.GetHttpClient().PostAsync(url, stringContent).Result;
         result.EnsureSuccessStatusCode();
-    
+
         var responseBody = result.Content.ReadAsStringAsync().Result;
-        var response = JsonConvert.DeserializeObject<Response>(responseBody);
-        if (response.Success 
+        var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
+        if (response.Success
             && response.Data != null
-            && response.Data is JToken responseData)
+            && response.Data is JsonElement responseData)
         {
-            assetVersionList = responseData.ToObject<List<AssetVersion>>();
+            assetVersionList = JsonSerializer.Deserialize<List<AssetVersion>>(responseData.GetRawText(), JsonOpts);
         }
 
         return assetVersionList;
@@ -88,18 +93,18 @@ internal static class HttpClientHelperAssetLibraryExtension
         {
             return string.Empty;
         }
-        
+
         var url = httpClientHelper.GetDownloadReleaseDetailsForAssetUrl(releaseDetailsLink);
         var result = httpClientHelper.GetHttpClient().GetAsync(url).Result;
         result.EnsureSuccessStatusCode();
 
         var responseBody = result.Content.ReadAsStringAsync().Result;
-        var response = JsonConvert.DeserializeObject<Response>(responseBody);
-        if (response.Success 
+        var response = JsonSerializer.Deserialize<Response>(responseBody, JsonOpts);
+        if (response.Success
             && response.Data != null
-            && response.Data is JToken responseData)
+            && response.Data is JsonElement responseData)
         {
-            var releaseNotesLink = responseData["RedirectLink"].ToString();
+            var releaseNotesLink = responseData.GetProperty("RedirectLink").GetString();
             var releaseNotes = httpClientHelper.GetHttpClient().GetAsync(releaseNotesLink).Result;
             return releaseNotes.Content.ReadAsStringAsync().Result;
         }
