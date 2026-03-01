@@ -6,6 +6,7 @@ using Spectre.Console;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 
 namespace LCS;
 
@@ -13,6 +14,11 @@ internal static class Program
 {
     private static readonly SessionState State = new();
     private static readonly TimeSpan BrowserLoginTimeout = TimeSpan.FromMinutes(6);
+    private static readonly JsonSerializerOptions SettingsJsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
 
     private static async Task<int> Main(string[] args)
     {
@@ -341,6 +347,7 @@ internal static class Program
 
             State.CheInstances.Clear();
             State.SaasInstances.Clear();
+            LoadCachedEnvironmentsForSelectedProject();
 
             Properties.Settings.Default.cookie = normalizedCookie;
             Properties.Settings.Default.Save();
@@ -455,6 +462,7 @@ internal static class Program
         ConfigureProjectContext(selected.Project);
         State.CheInstances.Clear();
         State.SaasInstances.Clear();
+        LoadCachedEnvironmentsForSelectedProject();
         AnsiConsole.MarkupLine($"[green]Project selected:[/] {Markup.Escape(selected.Project.Name)}");
     }
 
@@ -489,6 +497,7 @@ internal static class Program
             State.CheInstances.AddRange(cheInstances);
             State.SaasInstances.Clear();
             State.SaasInstances.AddRange(saasInstances);
+            PersistCurrentProjectEnvironmentCache();
             AnsiConsole.MarkupLine($"[green]Refresh complete.[/] CHE: {cheInstances.Count}, SAAS: {saasInstances.Count}");
         }
         catch (Exception ex)
@@ -1210,6 +1219,80 @@ internal static class Program
     }
 
     private static string ValueOrDash(string value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private static void LoadCachedEnvironmentsForSelectedProject()
+    {
+        if (State.SelectedProject == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var cachedProjectInstances = GetCachedProjectInstances();
+            var projectInstance = cachedProjectInstances
+                .FirstOrDefault(instance => instance.LcsProjectId == State.SelectedProject.Id);
+            if (projectInstance == null)
+            {
+                return;
+            }
+
+            State.CheInstances.Clear();
+            if (projectInstance.CheInstances != null)
+            {
+                State.CheInstances.AddRange(projectInstance.CheInstances
+                    .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase));
+            }
+
+            State.SaasInstances.Clear();
+            if (projectInstance.SaasInstances != null)
+            {
+                State.SaasInstances.AddRange(projectInstance.SaasInstances
+                    .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase));
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Could not load environment cache:[/] {Markup.Escape(ex.Message)}");
+        }
+    }
+
+    private static void PersistCurrentProjectEnvironmentCache()
+    {
+        if (State.SelectedProject == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var cachedProjectInstances = GetCachedProjectInstances();
+            cachedProjectInstances.RemoveAll(instance => instance.LcsProjectId == State.SelectedProject.Id);
+            cachedProjectInstances.Add(new ProjectInstance
+            {
+                LcsProjectId = State.SelectedProject.Id,
+                CheInstances = [.. State.CheInstances],
+                SaasInstances = [.. State.SaasInstances]
+            });
+
+            Properties.Settings.Default.instances = JsonSerializer.Serialize(cachedProjectInstances, SettingsJsonOpts);
+            Properties.Settings.Default.Save();
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Could not persist environment cache:[/] {Markup.Escape(ex.Message)}");
+        }
+    }
+
+    private static List<ProjectInstance> GetCachedProjectInstances()
+    {
+        if (string.IsNullOrWhiteSpace(Properties.Settings.Default.instances))
+        {
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<ProjectInstance>>(Properties.Settings.Default.instances, SettingsJsonOpts) ?? [];
+    }
 
     private static string Truncate(string value, int maxLength)
     {
