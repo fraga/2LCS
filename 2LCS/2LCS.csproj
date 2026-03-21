@@ -52,7 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="AutoMapper" Version="16.1.1" />
     <PackageReference Include="CsvHelper" Version="33.0.1" />
     <PackageReference Include="DocX" Version="3.0.23523.1209" />
     <PackageReference Include="HtmlAgilityPack" Version="1.11.72" />
